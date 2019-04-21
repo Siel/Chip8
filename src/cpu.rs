@@ -70,6 +70,9 @@ impl Cpu {
       0x8000 => self.op_ld_vx_vy(),
       0x8001 => self.op_or_vx_vy(),
       0x8002 => self.op_and_vx_vy(),
+      0x8003 => self.op_xor_vy_vy(),
+      0x8004 => self.op_add_vx_vy(),
+      0x8005 => self.op_sub_vx_vy(),
       _ => self.op_unimplemented(),
     }
   }
@@ -172,6 +175,46 @@ impl Cpu {
     self.inc_pc();
   }
 
+  //8xy3 - XOR Vx, Vy
+  //Set Vx = Vx XOR Vy.
+  //Performs a bitwise exclusive OR on the values of Vx and Vy,
+  fn op_xor_vy_vy(&mut self) {
+    self.v[((self.opcode & 0x0f00) >> 8) as usize] ^=
+      self.v[((self.opcode & 0x00f0) >> 4) as usize];
+    self.inc_pc();
+  }
+
+  //8xy4 - ADD Vx, Vy
+  //Set Vx = Vx + Vy, set VF = carry.
+  //The values of Vx and Vy are added together. If the result is greater than 8 bits (i.e., > 255,) VF is set to 1, otherwise 0. Only the lowest 8 bits of the result are kept, and stored in Vx.
+  fn op_add_vx_vy(&mut self) {
+    let sum = self.v[((self.opcode & 0x0f00) >> 8) as usize] as u16
+      + self.v[((self.opcode & 0x00f0) >> 4) as usize] as u16;
+    if sum > 0xff {
+      self.v[0xf] = 1;
+    } else {
+      self.v[0xf] = 0;
+    }
+    self.v[((self.opcode & 0x0f00) >> 8) as usize] = (sum & 0x00ff) as u8;
+    self.inc_pc();
+  }
+
+  //8xy5 - SUB Vx, Vy
+  //Set Vx = Vx - Vy, set VF = NOT borrow.
+  //If Vx < Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
+  fn op_sub_vx_vy(&mut self) {
+    if self.v[((self.opcode & 0x0f00) >> 8) as usize]
+      < self.v[((self.opcode & 0x00f0) >> 4) as usize]
+    {
+      self.v[0xf] = 1;
+    } else {
+      self.v[0xf] = 0;
+    }
+    //wrapping prevents the execution to panic if the operation overflows
+    self.v[((self.opcode & 0x0f00) >> 8) as usize] = self.v[((self.opcode & 0x0f00) >> 8) as usize]
+      .wrapping_sub(self.v[((self.opcode & 0x00f0) >> 4) as usize]);
+    self.inc_pc();
+  }
   fn exit(&self) {
     println!("The emulator is exiting");
     panic!("");
@@ -357,4 +400,57 @@ mod test {
     assert_eq!(cpu.pc, 0x206);
   }
 
+  #[test]
+  fn test_op_xor_vx_vy() {
+    let mut cpu = Cpu::new();
+    cpu.load_program(vec![0x62, 0xaa, 0x65, 0x3d, 0x85, 0x23]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.v[5], 0x97);
+  }
+
+  #[test]
+  fn test_op_add_vx_vy() {
+    let mut cpu = Cpu::new();
+    cpu.load_program(vec![0x62, 0xaa, 0x65, 0x01, 0x85, 0x24]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.v[0xf], 0);
+    assert_eq!(cpu.v[5], 0xab);
+  }
+
+  #[test]
+  fn test_op_add_vx_vy_with_overflow() {
+    let mut cpu = Cpu::new();
+    cpu.load_program(vec![0x62, 0xfa, 0x65, 0x10, 0x85, 0x24]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.v[5], 0x0a);
+    assert_eq!(cpu.v[0xf], 1);
+  }
+
+  #[test]
+  fn test_op_sub_vx_vy() {
+    let mut cpu = Cpu::new();
+    cpu.load_program(vec![0x62, 0x0a, 0x65, 0xaa, 0x85, 0x25]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.v[0xf], 0);
+    assert_eq!(cpu.v[5], 0xa0);
+  }
+
+  #[test]
+  fn test_op_sub_vx_vy_with_overflow() {
+    let mut cpu = Cpu::new();
+    cpu.load_program(vec![0x62, 0xab, 0x65, 0xaa, 0x85, 0x25]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.v[0xf], 1);
+    assert_eq!(cpu.v[5], 0xff);
+  }
 }
