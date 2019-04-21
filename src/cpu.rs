@@ -68,6 +68,7 @@ impl Cpu {
   fn ex_op_0x8000(&mut self) {
     match self.opcode & 0xf00f {
       0x8000 => self.op_ld_vx_vy(),
+      0x8001 => self.op_or_vx_vy(),
       _ => self.op_unimplemented(),
     }
   }
@@ -149,6 +150,15 @@ impl Cpu {
   //Stores the value of register Vy in register Vx.
   fn op_ld_vx_vy(&mut self) {
     self.v[((self.opcode & 0x0f00) >> 8) as usize] = self.v[((self.opcode & 0x00f0) >> 4) as usize];
+    self.inc_pc();
+  }
+
+  //8xy1 - OR Vx, Vy
+  //Set Vx = Vx OR Vy.
+  //Performs a bitwise OR on the values of Vx and Vy, then stores the result in Vx.
+  fn op_or_vx_vy(&mut self) {
+    self.v[((self.opcode & 0x0f00) >> 8) as usize] |=
+      self.v[((self.opcode & 0x00f0) >> 4) as usize];
     self.inc_pc();
   }
 
@@ -284,6 +294,21 @@ mod test {
     let mut cpu = Cpu::new();
     cpu.load_program(vec![
       0x62, 0x03, 0x85, 0x20, 0x52, 0x50, 0x13, 0x47, 0x13, 0x86,
+    ]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.v[2], 0x03);
+    assert_eq!(cpu.v[5], 0x03);
+    assert_eq!(cpu.pc, 0x386);
+  }
+
+  #[test]
+  fn test_op_or_vx_vy() {
+    let mut cpu = Cpu::new();
+    cpu.load_program(vec![
+      0x62, 0x03, 0x85, 0x21, 0x52, 0x50, 0x13, 0x47, 0x13, 0x86,
     ]);
     cpu.next_cycle();
     cpu.next_cycle();
