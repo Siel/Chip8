@@ -57,6 +57,8 @@ impl Cpu {
       0x2000 => self.op_call_addr(),
       0x3000 => self.op_se(),
       0x4000 => self.op_sne(),
+      0x5000 => self.op_se_xy(),
+      0x6000 => self.op_ld_vx(),
       _ => self.op_unimplemented(),
     }
   }
@@ -99,9 +101,29 @@ impl Cpu {
   //Skip next instruction if Vx != kk.
   //The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
   fn op_sne(&mut self) {
-    if self.v[((self.opcode & 0xf00) >> 8) as usize] != (self.opcode & 0x00ff) as u8 {
+    if self.v[((self.opcode & 0x0f00) >> 8) as usize] != (self.opcode & 0x00ff) as u8 {
       self.inc_pc();
     }
+    self.inc_pc();
+  }
+
+  //5xy0 - SE Vx, Vy
+  //Skip next instruction if Vx = Vy.
+  //The interpreter compares register Vx to register Vy, and if they are equal, increments the program counter by 2.
+  fn op_se_xy(&mut self) {
+    if self.v[((self.opcode & 0x0f00) >> 8) as usize]
+      == self.v[((self.opcode & 0x00f0) >> 4) as usize]
+    {
+      self.inc_pc();
+    }
+    self.inc_pc();
+  }
+
+  //6xkk - LD Vx, byte
+  //Set Vx = kk.
+  //The interpreter puts the value kk into register Vx.
+  fn op_ld_vx(&mut self) {
+    self.v[((self.opcode & 0x0f00) >> 8) as usize] = (self.opcode & 0x00ff) as u8;
     self.inc_pc();
   }
 
@@ -121,13 +143,13 @@ mod test {
     let data = vec![0x1, 0x2, 0x3, 0x4];
     let mut cpu = Cpu::new();
     let mut memory = vec![0; 0x200];
-    let mut program = vec![0; 0xdff];
+    let mut program = vec![0; 0xe00];
     for (index, &byte) in data.iter().enumerate() {
       program[index] = byte;
     }
     memory.append(&mut program);
     cpu.load_program(data);
-    for i in 0..0xfff {
+    for i in 0..0x1000 {
       assert_eq!(memory[i], cpu.memory[i])
     }
   }
@@ -176,6 +198,43 @@ mod test {
     cpu.load_program(vec![0x42, 0x04, 0x00, 0x00, 0x13, 0x86]);
     cpu.next_cycle();
     cpu.next_cycle();
+    assert_eq!(cpu.pc, 0x386);
+  }
+
+  #[test]
+  fn test_op_se_xy() {
+    let mut cpu = Cpu::new();
+    cpu.v[2] = 0x03;
+    cpu.v[5] = 0x03;
+    cpu.load_program(vec![0x52, 0x50, 0x13, 0x47, 0x13, 0x86]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.pc, 0x386);
+  }
+
+  #[test]
+  fn test_no_op_se_xy() {
+    let mut cpu = Cpu::new();
+    cpu.v[2] = 0x03;
+    cpu.v[5] = 0x04;
+    cpu.load_program(vec![0x52, 0x50, 0x13, 0x47, 0x13, 0x86]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.pc, 0x347);
+  }
+
+  #[test]
+  fn test_op_ld_vx() {
+    let mut cpu = Cpu::new();
+    cpu.load_program(vec![
+      0x62, 0x03, 0x65, 0x03, 0x52, 0x50, 0x13, 0x47, 0x13, 0x86,
+    ]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.v[2], 0x03);
+    assert_eq!(cpu.v[5], 0x03);
     assert_eq!(cpu.pc, 0x386);
   }
 
