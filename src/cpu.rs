@@ -7,8 +7,9 @@ pub struct Cpu {
   //sound_timer: u8,
   //delay_timer: u8,
   pc: usize,
-  //sp: usize,
-  memory: [u8; 4096],
+  sp: usize,
+  pub memory: [u8; 4096],
+  stack: [u16; 16],
 }
 
 impl Cpu {
@@ -20,8 +21,9 @@ impl Cpu {
       //sound_timer: 0,
       //delay_timer: 0,
       pc: 0x200,
-      //sp: 0,
+      sp: 0,
       memory: [0; 4096],
+      stack: [0; 16],
     }
   }
 
@@ -51,8 +53,9 @@ impl Cpu {
 
   fn execute_opcode(&mut self) {
     match self.opcode & 0xf000 {
-      0x1000 => self.opcode_jp_addr(),
-      _ => self.opcode_unimplemented(),
+      0x1000 => self.op_jp_addr(),
+      0x2000 => self.op_call_addr(),
+      _ => self.op_unimplemented(),
     }
   }
 
@@ -60,15 +63,24 @@ impl Cpu {
     self.pc += 2;
   }
 
-  fn opcode_unimplemented(&self) {
+  fn op_unimplemented(&self) {
     println!("Error: opcode 0x{:x} is not implemented", self.opcode);
     self.exit()
   }
 
   //1NNN	Jump to address NNN
-  fn opcode_jp_addr(&mut self) {
+  fn op_jp_addr(&mut self) {
     self.pc = (self.opcode & 0x0fff) as usize;
     println!("pc: {:x?}", self.pc);
+  }
+
+  //2nnn - CALL addr
+  //Call subroutine at nnn.
+  //The interpreter increments the stack pointer, then puts the current PC on the top of the stack. The PC is then set to nnn.
+  fn op_call_addr(&mut self) {
+    self.stack[self.sp] = self.pc as u16;
+    self.sp += 1;
+    self.pc = (self.opcode & 0x0fff) as usize;
   }
 
   fn exit(&self) {
