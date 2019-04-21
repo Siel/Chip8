@@ -6,7 +6,7 @@ pub struct Cpu {
   //i: u16,
   //sound_timer: u8,
   //delay_timer: u8,
-  pc: u16,
+  pc: usize,
   //sp: usize,
   memory: [u8; 4096],
 }
@@ -19,7 +19,7 @@ impl Cpu {
       //i: 0x200,
       //sound_timer: 0,
       //delay_timer: 0,
-      pc: 0x0200,
+      pc: 0x200,
       //sp: 0,
       memory: [0; 4096],
     }
@@ -42,8 +42,7 @@ impl Cpu {
   }
 
   fn fetch_opcode(&mut self) {
-    self.opcode =
-      (self.memory[self.pc as usize] as u16) << 8 | (self.memory[(self.pc + 1) as usize] as u16);
+    self.opcode = (self.memory[self.pc] as u16) << 8 | (self.memory[self.pc + 1] as u16);
     println!(
       "Fetching opcode at position 0x{:x}: 0x{:x}",
       self.pc, self.opcode
@@ -68,7 +67,7 @@ impl Cpu {
 
   //1NNN	Jump to address NNN
   fn opcode_jp_addr(&mut self) {
-    self.pc = self.opcode & 0x0fff;
+    self.pc = (self.opcode & 0x0fff) as usize;
     println!("pc: {:x?}", self.pc);
   }
 
