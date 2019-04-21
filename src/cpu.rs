@@ -1,4 +1,4 @@
-use std::process;
+//use std::process;
 
 pub struct Cpu {
   opcode: u16,
@@ -56,6 +56,7 @@ impl Cpu {
       0x1000 => self.op_jp_addr(),
       0x2000 => self.op_call_addr(),
       0x3000 => self.op_se(),
+      0x4000 => self.op_sne(),
       _ => self.op_unimplemented(),
     }
   }
@@ -89,6 +90,16 @@ impl Cpu {
   //The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
   fn op_se(&mut self) {
     if self.v[((self.opcode & 0x0f00) >> 8) as usize] == (self.opcode & 0x00ff) as u8 {
+      self.inc_pc();
+    }
+    self.inc_pc();
+  }
+
+  //4xkk - SNE Vx, byte
+  //Skip next instruction if Vx != kk.
+  //The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
+  fn op_sne(&mut self) {
+    if self.v[((self.opcode & 0xf00) >> 8) as usize] != (self.opcode & 0x00ff) as u8 {
       self.inc_pc();
     }
     self.inc_pc();
@@ -153,6 +164,16 @@ mod test {
     let mut cpu = Cpu::new();
     cpu.v[2] = 0x04;
     cpu.load_program(vec![0x32, 0x04, 0x00, 0x00, 0x13, 0x86]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.pc, 0x386);
+  }
+
+  #[test]
+  fn test_op_sne() {
+    let mut cpu = Cpu::new();
+    cpu.v[2] = 0x03;
+    cpu.load_program(vec![0x42, 0x04, 0x00, 0x00, 0x13, 0x86]);
     cpu.next_cycle();
     cpu.next_cycle();
     assert_eq!(cpu.pc, 0x386);
