@@ -6,7 +6,7 @@ pub struct Cpu {
   //i: u16,
   //sound_timer: u8,
   //delay_timer: u8,
-  pc: usize,
+  pc: u16,
   //sp: usize,
   memory: [u8; 4096],
 }
@@ -19,7 +19,7 @@ impl Cpu {
       //i: 0x200,
       //sound_timer: 0,
       //delay_timer: 0,
-      pc: 0x200,
+      pc: 0x0200,
       //sp: 0,
       memory: [0; 4096],
     }
@@ -38,11 +38,12 @@ impl Cpu {
   pub fn next_cycle(&mut self) {
     self.fetch_opcode();
     self.execute_opcode();
-    self.inc_pc();
+    //self.inc_pc();
   }
 
   fn fetch_opcode(&mut self) {
-    self.opcode = (self.memory[self.pc] as u16) << 8 | (self.memory[self.pc + 1] as u16);
+    self.opcode =
+      (self.memory[self.pc as usize] as u16) << 8 | (self.memory[(self.pc + 1) as usize] as u16);
     println!(
       "Fetching opcode at position 0x{:x}: 0x{:x}",
       self.pc, self.opcode
@@ -51,6 +52,7 @@ impl Cpu {
 
   fn execute_opcode(&mut self) {
     match self.opcode & 0xf000 {
+      0x1000 => self.opcode_jp_addr(),
       _ => self.opcode_unimplemented(),
     }
   }
@@ -62,6 +64,12 @@ impl Cpu {
   fn opcode_unimplemented(&self) {
     println!("Error: opcode 0x{:x} is not implemented", self.opcode);
     self.exit()
+  }
+
+  //1NNN	Jump to address NNN
+  fn opcode_jp_addr(&mut self) {
+    self.pc = self.opcode & 0x0fff;
+    println!("pc: {:x?}", self.pc);
   }
 
   fn exit(&self) {
