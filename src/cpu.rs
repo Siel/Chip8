@@ -59,6 +59,7 @@ impl Cpu {
       0x4000 => self.op_sne(),
       0x5000 => self.op_se_xy(),
       0x6000 => self.op_ld_vx(),
+      0x7000 => self.op_add_vx(),
       _ => self.op_unimplemented(),
     }
   }
@@ -124,6 +125,14 @@ impl Cpu {
   //The interpreter puts the value kk into register Vx.
   fn op_ld_vx(&mut self) {
     self.v[((self.opcode & 0x0f00) >> 8) as usize] = (self.opcode & 0x00ff) as u8;
+    self.inc_pc();
+  }
+
+  //7xkk - ADD Vx, byte
+  //Set Vx = Vx + kk.
+  //Adds the value kk to the value of register Vx, then stores the result in Vx.
+  fn op_add_vx(&mut self) {
+    self.v[((self.opcode & 0x0f00) >> 8) as usize] += (self.opcode & 0x00ff) as u8;
     self.inc_pc();
   }
 
@@ -229,6 +238,22 @@ mod test {
     cpu.load_program(vec![
       0x62, 0x03, 0x65, 0x03, 0x52, 0x50, 0x13, 0x47, 0x13, 0x86,
     ]);
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    cpu.next_cycle();
+    assert_eq!(cpu.v[2], 0x03);
+    assert_eq!(cpu.v[5], 0x03);
+    assert_eq!(cpu.pc, 0x386);
+  }
+
+  #[test]
+  fn test_op_add_vx() {
+    let mut cpu = Cpu::new();
+    cpu.load_program(vec![
+      0x62, 0x02, 0x65, 0x03, 0x72, 0x01, 0x52, 0x50, 0x13, 0x47, 0x13, 0x86,
+    ]);
+    cpu.next_cycle();
     cpu.next_cycle();
     cpu.next_cycle();
     cpu.next_cycle();
