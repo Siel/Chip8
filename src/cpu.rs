@@ -1,5 +1,7 @@
 //use std::process;
 
+const LEGACY: bool = false;
+
 pub struct Cpu {
   opcode: u16,
   v: [u8; 16],
@@ -61,6 +63,7 @@ impl Cpu {
       0x6000 => self.op_ld_vx(),
       0x7000 => self.op_add_vx(),
       0x8000 => self.ex_op_0x8000(),
+      0x9000 => self.op_sne_vx_vy(),
       _ => self.op_unimplemented(),
     }
   }
@@ -73,6 +76,9 @@ impl Cpu {
       0x8003 => self.op_xor_vy_vy(),
       0x8004 => self.op_add_vx_vy(),
       0x8005 => self.op_sub_vx_vy(),
+      0x8006 => self.op_shr_vx_vy(),
+      0x8007 => self.op_subn_vx_vy(),
+      0x800e => self.op_shl_vx_vy(),
       _ => self.op_unimplemented(),
     }
   }
@@ -215,6 +221,79 @@ impl Cpu {
       .wrapping_sub(self.v[((self.opcode & 0x00f0) >> 4) as usize]);
     self.inc_pc();
   }
+
+  //8xy6 - SHR Vx Vy
+  //Set Vx = Vy SHR 1.
+  //LEGACY: If the least-significant bit of Vy is 1, then VF is set to 1, otherwise 0. Then Vy is divided by 2 and the results stored in Vx.
+  //NEW: If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0. Then Vx is divided by 2.
+  fn op_shr_vx_vy(&mut self) {
+    if LEGACY {
+      //vf = vy &0x0001
+      self.v[0xf] = (self.v[((self.opcode & 0x00f0) >> 4) as usize] & 0x0001) as u8;
+      //vx = vy / 2
+      self.v[((self.opcode & 0x0f00) >> 8) as usize] =
+        self.v[((self.opcode & 0x00f0) >> 4) as usize] >> 1;
+      self.inc_pc();
+    } else {
+      //vf = vx &0x0001
+      self.v[0xf] = (self.v[((self.opcode & 0x0f00) >> 8) as usize] & 0x0001) as u8;
+      //vx = vx / 2
+      self.v[((self.opcode & 0x0f00) >> 8) as usize] =
+        self.v[((self.opcode & 0x0f00) >> 8) as usize] >> 1;
+      self.inc_pc();
+    }
+  }
+
+  //8xy7 - SUBN Vx, Vy
+  //Set Vx = Vy - Vx, set VF = NOT borrow.
+  //If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
+  fn op_subn_vx_vy(&mut self) {
+    if self.v[((self.opcode & 0x0f00) >> 8) as usize]
+      < self.v[((self.opcode & 0x00f0) >> 4) as usize]
+    {
+      self.v[0xf] = 0;
+    } else {
+      self.v[0xf] = 1;
+    }
+    self.v[((self.opcode & 0x0f00) >> 8) as usize] -=
+      self.v[((self.opcode & 0x00f0) >> 4) as usize];
+    self.inc_pc();
+  }
+
+  //8xyE - SHL Vx {, Vy}
+  //Set Vx = Vx SHL 1.
+  //LEGACY: If the most-significant bit of Vy is 1, then VF is set to 1, otherwise to 0. Then Vy is multiplied by 2 and stored in Vx.
+  //New: If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0. Then Vx is multiplied by 2.
+  fn op_shl_vx_vy(&mut self) {
+    if LEGACY {
+      //vf = vy MSB
+      self.v[0xf] = (self.v[((self.opcode & 0x00f0) >> 4) as usize] >> 7) as u8;
+      //vx = vy * 2
+      self.v[((self.opcode & 0x0f00) >> 8) as usize] =
+        self.v[((self.opcode & 0x00f0) >> 4) as usize] << 1;
+      self.inc_pc();
+    } else {
+      //vf = vx MSB
+      self.v[0xf] = (self.v[((self.opcode & 0x0f00) >> 8) as usize] >> 7) as u8;
+      //vx = vx * 2
+      self.v[((self.opcode & 0x0f00) >> 8) as usize] =
+        self.v[((self.opcode & 0x0f00) >> 8) as usize] << 1;
+      self.inc_pc();
+    }
+  }
+
+  //9xy0 - SNE Vx, Vy
+  //Skip next instruction if Vx != Vy.
+  //The values of Vx and Vy are compared, and if they are not equal, the program counter is increased by 2.
+  fn op_sne_vx_vy(&mut self) {
+    if self.v[((self.opcode & 0x0f00) >> 8) as usize]
+      != self.v[((self.opcode & 0x00f0) >> 4) as usize]
+    {
+      self.inc_pc();
+    }
+    self.inc_pc();
+  }
+
   fn exit(&self) {
     println!("The emulator is exiting");
     panic!("");
