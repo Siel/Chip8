@@ -1,17 +1,17 @@
 //use std::process;
-
 const LEGACY: bool = false;
 
 pub struct Cpu {
   opcode: u16,
   v: [u8; 16],
-  //i: u16,
+  i: u16,
   //sound_timer: u8,
   //delay_timer: u8,
   pc: usize,
   sp: usize,
   memory: [u8; 4096],
   stack: [u16; 16],
+  screen_buffer: [[bool; 64]; 32],
 }
 
 impl Cpu {
@@ -19,13 +19,14 @@ impl Cpu {
     Cpu {
       opcode: 0,
       v: [0; 16],
-      //i: 0x200,
+      i: 0x200,
       //sound_timer: 0,
       //delay_timer: 0,
       pc: 0x200,
       sp: 0,
       memory: [0; 4096],
       stack: [0; 16],
+      screen_buffer: [[false; 64]; 32],
     }
   }
 
@@ -64,6 +65,10 @@ impl Cpu {
       0x7000 => self.op_add_vx(),
       0x8000 => self.ex_op_0x8000(),
       0x9000 => self.op_sne_vx_vy(),
+      0xa000 => self.op_ldi(),
+      0xb000 => self.op_jp_addr_v0(),
+      0xc000 => self.op_rnd_vx(),
+      0xd000 => self.op_drw_vx_vy_n(),
       _ => self.op_unimplemented(),
     }
   }
@@ -95,7 +100,7 @@ impl Cpu {
   //1NNN	Jump to address NNN
   fn op_jp_addr(&mut self) {
     self.pc = (self.opcode & 0x0fff) as usize;
-    println!("pc: {:x?}", self.pc);
+    //println!("pc: {:x?}", self.pc);
   }
 
   //2nnn - CALL addr
@@ -291,6 +296,71 @@ impl Cpu {
     {
       self.inc_pc();
     }
+    self.inc_pc();
+  }
+
+  //Annn - LD I, addr
+  //Set I = nnn.
+  //The value of register I is set to nnn.
+  fn op_ldi(&mut self) {
+    self.i = self.opcode & 0x0fff;
+    self.inc_pc();
+  }
+
+  //Bnnn - JP V0, addr
+  //Jump to location nnn + V0.
+  //The program counter is set to nnn plus the value of V0.
+  fn op_jp_addr_v0(&mut self) {
+    self.pc = (self.opcode & 0x0fff) as usize + self.v[0x0] as usize;
+  }
+
+  //Cxkk - RND Vx, byte
+  //Set Vx = random byte AND kk.
+  //The interpreter generates a random number from 0 to 255, which is then ANDed with the value kk. The results are stored in Vx.
+  fn op_rnd_vx(&mut self) {
+    self.v[((self.opcode & 0x0f00) >> 8) as usize] =
+      rand::random::<u8>() & (self.opcode & 0x00ff) as u8;
+    self.inc_pc();
+  }
+
+  //Dxyn - DRW Vx, Vy, nibble
+  //Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
+  //The interpreter reads n bytes from memory, starting at the address stored in I.
+  //These bytes are then displayed as sprites on screen at coordinates (Vx, Vy).
+  //Sprites are XORed onto the existing screen. If this causes any pixels to be erased,
+  //VF is set to 1, otherwise it is set to 0.
+  //If the sprite is positioned so part of it is outside the coordinates of the display,
+  //it wraps around to the opposite side of the screen.
+  fn op_drw_vx_vy_n(&mut self) {
+    let vx = self.v[((self.opcode & 0x0f00) >> 8) as usize] as usize;
+    let vy = self.v[((self.opcode & 0x00f0) >> 4) as usize] as usize;
+    let n = (self.opcode & 0x000f) as usize;
+    let mut collision = 0;
+    let i = self.i as usize;
+    if vx > 63 || vy > 31 {
+      return;
+    }
+    let sprite = &self.memory[i..i + n];
+    for y_offset in 0..n {
+      if vy + y_offset > 31 {
+        break;
+      }
+      let mut x_offset = vx + 8;
+      if x_offset > 63 {
+        x_offset = 63;
+      }
+      let screen_slice = &mut self.screen_buffer[vy + y_offset][vx..x_offset];
+      let sprite_slice = sprite[y_offset];
+
+      for pixel in 0..screen_slice.len() {
+        let sprite_pixel = (sprite_slice & (0b1000_0000 >> pixel)) != 0; //casting to bool
+        if screen_slice[pixel] && sprite_pixel {
+          collision = 1
+        }
+        screen_slice[pixel] ^= sprite_pixel;
+      }
+    }
+    self.v[0xf] = collision;
     self.inc_pc();
   }
 
