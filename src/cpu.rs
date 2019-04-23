@@ -1,4 +1,4 @@
-use std::process;
+//use std::process;
 const LEGACY: bool = false;
 
 pub struct Cpu {
@@ -85,10 +85,6 @@ impl Cpu {
     match self.opcode {
       0x00E0 => self.op_cls(),
       0x00EE => self.op_ret(),
-      0x0000 => {
-        println!("Reached a 0000 instruction. Emulation terminated.");
-        process::exit(0);
-      }
       _ => self.op_unimplemented(),
     }
   }
@@ -559,8 +555,8 @@ static FONT_SPRITES: [u8; 80] = [
   0xF0, 0x80, 0x80, 0x80, 0xF0, // C
   0xE0, 0x90, 0x90, 0x90, 0xE0, // D
   0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-  0xF0, 0x80, 0xF0, 0x80, 0x80,
-]; // F
+  0xF0, 0x80, 0xF0, 0x80, 0x80, // F
+];
 
 #[cfg(test)]
 mod test {
