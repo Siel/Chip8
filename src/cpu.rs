@@ -1,4 +1,4 @@
-//use std::process;
+use std::process;
 const LEGACY: bool = false;
 
 pub struct Cpu {
@@ -61,6 +61,7 @@ impl Cpu {
 
   fn execute_opcode(&mut self) {
     match self.opcode & 0xf000 {
+      0x0000 => self.op_0xxx(),
       0x1000 => self.op_jp_addr(),
       0x2000 => self.op_call_addr(),
       0x3000 => self.op_se(),
@@ -76,6 +77,18 @@ impl Cpu {
       0xd000 => self.op_drw_vx_vy_n(),
       0xe000 => self.ex_op_0xe000(),
       0xf000 => self.ex_op_0xf000(),
+      _ => self.op_unimplemented(),
+    }
+  }
+
+  fn op_0xxx(&mut self) {
+    match self.opcode {
+      0x00E0 => self.op_cls(),
+      0x00EE => self.op_ret(),
+      0x0000 => {
+        println!("Reached a 0000 instruction. Emulation terminated.");
+        process::exit(0);
+      }
       _ => self.op_unimplemented(),
     }
   }
@@ -125,6 +138,21 @@ impl Cpu {
   fn op_unimplemented(&self) {
     println!("Error: opcode 0x{:x} is not implemented", self.opcode);
     self.exit()
+  }
+
+  // 00E0 - CLS -- Clear the display.
+  fn op_cls(&mut self) {
+    self.screen_buffer = [[false; 64]; 32];
+    self.inc_pc();
+  }
+
+  // 00EE - RET -- Return from a subroutine.
+  // Sets program counter to address at the top of the stack, then subtracts 1 from
+  // the stack pointer.
+  fn op_ret(&mut self) {
+    self.sp -= 1;
+    self.pc = self.stack[self.sp] as usize;
+    self.inc_pc();
   }
 
   //1NNN	Jump to address NNN
