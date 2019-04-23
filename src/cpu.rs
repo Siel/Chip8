@@ -5,13 +5,14 @@ pub struct Cpu {
   opcode: u16,
   v: [u8; 16],
   i: u16,
-  //sound_timer: u8,
-  //delay_timer: u8,
+  sound_timer: u8,
+  delay_timer: u8,
   pc: usize,
   sp: usize,
   memory: [u8; 4096],
   stack: [u16; 16],
   screen_buffer: [[bool; 64]; 32],
+  key_buffer: [bool; 16],
 }
 
 impl Cpu {
@@ -20,18 +21,22 @@ impl Cpu {
       opcode: 0,
       v: [0; 16],
       i: 0x200,
-      //sound_timer: 0,
-      //delay_timer: 0,
+      sound_timer: 0,
+      delay_timer: 0,
       pc: 0x200,
       sp: 0,
       memory: [0; 4096],
       stack: [0; 16],
       screen_buffer: [[false; 64]; 32],
+      key_buffer: [false; 16],
     }
   }
 
   pub fn load_program(&mut self, program: Vec<u8>) {
     let mut data = vec![0; 0x200]; //reserved portion of memory
+    for i in 0..80 {
+      data[i] = FONT_SPRITES[i];
+    }
     for byte in program {
       data.push(byte); //Injecting the program into the data vec
     }
@@ -69,6 +74,8 @@ impl Cpu {
       0xb000 => self.op_jp_addr_v0(),
       0xc000 => self.op_rnd_vx(),
       0xd000 => self.op_drw_vx_vy_n(),
+      0xe000 => self.ex_op_0xe000(),
+      0xf000 => self.ex_op_0xf000(),
       _ => self.op_unimplemented(),
     }
   }
@@ -84,6 +91,29 @@ impl Cpu {
       0x8006 => self.op_shr_vx_vy(),
       0x8007 => self.op_subn_vx_vy(),
       0x800e => self.op_shl_vx_vy(),
+      _ => self.op_unimplemented(),
+    }
+  }
+
+  fn ex_op_0xe000(&mut self) {
+    match self.opcode & 0xf0ff {
+      0xe09e => self.op_skp_vx(),
+      0xe0a1 => self.op_sknp_vx(),
+      _ => self.op_unimplemented(),
+    }
+  }
+
+  fn ex_op_0xf000(&mut self) {
+    match self.opcode & 0xf0ff {
+      0xf007 => self.op_ld_vx_dt(),
+      0xf00a => self.op_ld_vx_k(),
+      0xf015 => self.op_ld_dt_vx(),
+      0xf018 => self.op_ld_st_vx(),
+      0xf01e => self.op_add_i_vx(),
+      0xf029 => self.op_ld_f_vx(),
+      0xf033 => self.op_ld_b_vx(),
+      0xf055 => self.op_ld_i_vx(),
+      0xf065 => self.op_ld_vx_i(),
       _ => self.op_unimplemented(),
     }
   }
@@ -364,12 +394,145 @@ impl Cpu {
     self.inc_pc();
   }
 
+  //Ex9E - SKP Vx
+  //Skip next instruction if key with the value of Vx is pressed.
+  //Checks the keyboard, and if the key corresponding to the value of Vx is currently in the down position, PC is increased by 2.
+  fn op_skp_vx(&mut self) {
+    let key = self.v[((self.opcode & 0x0f00) as usize) >> 8] as usize;
+    if self.key_buffer[key] {
+      self.inc_pc();
+    }
+    self.inc_pc();
+  }
+
+  //ExA1 - SKNP Vx
+  //Skip next instruction if key with the value of Vx is not pressed.
+  //Checks the keyboard, and if the key corresponding to the value of Vx is currently in the up position, PC is increased by 2.
+  fn op_sknp_vx(&mut self) {
+    let key = self.v[((self.opcode & 0x0f00) as usize) >> 8] as usize;
+    if !self.key_buffer[key] {
+      self.inc_pc();
+    }
+    self.inc_pc();
+  }
+
+  //Fx07 - LD Vx, DT
+  //Set Vx = delay timer value.
+  //The value of DT is placed into Vx.
+  fn op_ld_vx_dt(&mut self) {
+    self.v[((self.opcode & 0x0f00) as usize) >> 8] = self.delay_timer;
+    self.inc_pc();
+  }
+
+  //Fx0A - LD Vx, K
+  //Wait for a key press, store the value of the key in Vx.
+  //All execution stops until a key is pressed, then the value of that key is stored in Vx.
+  fn op_ld_vx_k(&mut self) {
+    let exit = false;
+    for (i, pressed) in self.key_buffer.iter().enumerate() {
+      if *pressed {
+        self.v[((self.opcode & 0x0f00) as usize) >> 8] = i as u8;
+      }
+    }
+    if exit {
+      self.inc_pc();
+    }
+  }
+
+  //Fx15 - LD DT, Vx
+  //Set delay timer = Vx.
+  //DT is set equal to the value of Vx.
+  fn op_ld_dt_vx(&mut self) {
+    self.delay_timer = self.v[((self.opcode & 0x0f00) as usize) >> 8];
+    self.inc_pc();
+  }
+
+  //Fx18 - LD ST, Vx
+  //Set sound timer = Vx.
+  //ST is set equal to the value of Vx.
+  fn op_ld_st_vx(&mut self) {
+    self.sound_timer = self.v[((self.opcode & 0x0f00) as usize) >> 8];
+    self.inc_pc();
+  }
+
+  //Fx1E - ADD I, Vx
+  //Set I = I + Vx.
+  //The values of I and Vx are added, and the results are stored in I.
+  fn op_add_i_vx(&mut self) {
+    self.i += self.v[((self.opcode & 0x0f00) as usize) >> 8] as u16;
+    self.inc_pc();
+  }
+
+  //Fx29 - LD F, Vx
+  //Set I = location of sprite for digit Vx.
+  //The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx. See section 2.4, Display, for more information on the Chip-8 hexadecimal font.
+  fn op_ld_f_vx(&mut self) {
+    //each sprite takes 5 bytes so 0x0000-> '0', 0x0005 -> '1', 0x000a -> '2' and so on.
+    self.i = self.v[((self.opcode & 0x0f00) as usize) >> 8] as u16 * 5;
+    self.inc_pc();
+  }
+
+  //Fx33 - LD B, Vx
+  //Store BCD representation of Vx in memory locations I, I+1, and I+2.
+  //The interpreter takes the decimal value of Vx,
+  //and places the hundreds digit in memory at location in I,
+  //the tens digit at location I+1, and the ones digit at location I+2.
+  fn op_ld_b_vx(&mut self) {
+    let vx = self.v[((self.opcode & 0x0f00) as usize) >> 8];
+    let i = self.i as usize;
+    self.memory[i] = vx / 100;
+    self.memory[i + 1] = (vx % 100) / 10;
+    self.memory[i + 2] = (vx % 100) % 10;
+    self.inc_pc();
+  }
+
+  //Fx55 - LD [I], Vx
+  //Store registers V0 through Vx in memory starting at location I.
+  //The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I.
+  fn op_ld_i_vx(&mut self) {
+    let x = (((self.opcode & 0x0f00) as usize) >> 8) as u16;
+    for n in 0..x + 1 {
+      self.memory[(self.i + n) as usize] = self.v[n as usize];
+    }
+    self.inc_pc();
+  }
+
+  //Fx65 - LD Vx, [I]
+  //Read registers V0 through Vx from memory starting at location I.
+  //The interpreter reads values from memory starting at location I into registers V0 through Vx.
+  fn op_ld_vx_i(&mut self) {
+    let x = (((self.opcode & 0x0f00) as usize) >> 8) as u16;
+    for n in 0..x + 1 {
+      self.v[n as usize] = self.memory[(self.i + n) as usize];
+    }
+    self.inc_pc();
+  }
+
   fn exit(&self) {
     println!("The emulator is exiting");
     panic!("");
     //process::exit(0);
   }
 }
+
+static FONT_SPRITES: [u8; 80] = [
+  0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+  0x20, 0x60, 0x20, 0x20, 0x70, // 1
+  0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+  0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+  0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+  0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+  0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+  0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+  0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+  0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+  0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+  0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+  0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+  0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+  0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+  0xF0, 0x80, 0xF0, 0x80, 0x80,
+]; // F
 
 #[cfg(test)]
 mod test {
