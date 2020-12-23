@@ -3,24 +3,13 @@ mod graphics;
 use std::sync::mpsc;
 use std::thread;
 
-// pub struct Chip8 {
-//     // cpu: cpu::Cpu,
-//     // graphics: graphics::Graphics
-// }
 
-// impl Chip8 {
-//     // pub fn new() -> Chip8 {
-       
-//     //     Chip8{
-//     //         cpu : cpu::Cpu::new(),
-//     //         graphics : graphics::Graphics::new()
-//     //     }
-//     // }
 
     pub fn start(){
-        let mut graphics = graphics::Graphics::new();
+        let (tx, rx): (mpsc::Sender<[[bool; 64]; 32]>, mpsc::Receiver<[[bool; 64]; 32]>) = mpsc::channel();
+        let mut graphics = graphics::Graphics::new(rx);
         thread::spawn(move || {
-            let mut cpu = cpu::Cpu::new();
+            let mut cpu = cpu::Cpu::new(tx);
             cpu.load_program(vec![
                 0x12, 0x25, 0x53, 0x50, 0x41, 0x43, 0x45, 0x20, 0x49, 0x4e, 0x56, 0x41, 0x44, 0x45, 0x52,
                 0x53, 0x20, 0x30, 0x2e, 0x39, 0x31, 0x20, 0x42, 0x79, 0x20, 0x44, 0x61, 0x76, 0x69, 0x64,
@@ -109,11 +98,16 @@ use std::thread;
                 0x1e, 0x54, 0x66, 0x0c, 0x18, 0x9c, 0xa8, 0x24, 0x54, 0x54, 0x12, 0xa8, 0x42, 0x78, 0x0c,
                 0x3c, 0xa8, 0xae, 0xa8, 0xa8, 0xa8, 0xa8, 0xa8, 0xa8, 0xa8, 0xff, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ]); 
+            ]); // Space Invaders
             loop {
                 cpu.next_cycle();
             }
         });
+
+        // for received in rx {
+        //     // println!("Got: {:?}", received);
+        // }
+
         graphics.start_graphics();
         
 
