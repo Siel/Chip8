@@ -14,7 +14,8 @@ pub struct Cpu {
   stack: [u16; 16],
   vram: [[bool; 64]; 32],
   key_buffer: [bool; 16],
-  tx: mpsc::Sender<[[bool; 64]; 32]>
+  tx: mpsc::Sender<[[bool; 64]; 32]>,
+  update_vram: bool
 }
 
 impl Cpu {
@@ -31,7 +32,8 @@ impl Cpu {
       stack: [0; 16],
       vram: [[false; 64]; 32],
       key_buffer: [false; 16],
-      tx: tx
+      tx: tx,
+      update_vram: false
     }
   }
 
@@ -50,9 +52,12 @@ impl Cpu {
   }
 
   pub fn next_cycle(&mut self) {
+    self.update_vram = false;
     self.fetch_opcode();
     self.execute_opcode();
-    self.tx.send(self.vram);
+    if(self.update_vram){
+      self.tx.send(self.vram);
+    }
     //self.inc_pc();
   }
 
@@ -127,6 +132,7 @@ impl Cpu {
   // 00E0 - CLS -- Clear the display.
   fn op_cls(&mut self) {
     self.vram = [[false; 64]; 32];
+    self.update_vram = true;
     self.inc_pc();
   }
 
@@ -363,6 +369,7 @@ impl Cpu {
 
         }
     }
+    self.update_vram = true;
 
 
 
