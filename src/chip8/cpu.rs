@@ -65,70 +65,53 @@ impl Cpu {
   }
 
   fn execute_opcode(&mut self) {
-    match self.opcode & 0xf000 {
-      0x0000 => self.op_0xxx(),
-      0x1000 => self.op_jp_addr(),
-      0x2000 => self.op_call_addr(),
-      0x3000 => self.op_se(),
-      0x4000 => self.op_sne(),
-      0x5000 => self.op_se_xy(),
-      0x6000 => self.op_ld_vx(),
-      0x7000 => self.op_add_vx(),
-      0x8000 => self.ex_op_0x8000(),
-      0x9000 => self.op_sne_vx_vy(),
-      0xa000 => self.op_ldi(),
-      0xb000 => self.op_jp_addr_v0(),
-      0xc000 => self.op_rnd_vx(),
-      0xd000 => self.op_drw_vx_vy_n(),
-      0xe000 => self.ex_op_0xe000(),
-      0xf000 => self.ex_op_0xf000(),
-      _ => self.op_unimplemented(),
-    }
-  }
-
-  fn op_0xxx(&mut self) {
-    match self.opcode {
-      0x00E0 => self.op_cls(),
-      0x00EE => self.op_ret(),
-      _ => self.op_unimplemented(),
-    }
-  }
-
-  fn ex_op_0x8000(&mut self) {
-    match self.opcode & 0xf00f {
-      0x8000 => self.op_ld_vx_vy(),
-      0x8001 => self.op_or_vx_vy(),
-      0x8002 => self.op_and_vx_vy(),
-      0x8003 => self.op_xor_vy_vy(),
-      0x8004 => self.op_add_vx_vy(),
-      0x8005 => self.op_sub_vx_vy(),
-      0x8006 => self.op_shr_vx_vy(),
-      0x8007 => self.op_subn_vx_vy(),
-      0x800e => self.op_shl_vx_vy(),
-      _ => self.op_unimplemented(),
-    }
-  }
-
-  fn ex_op_0xe000(&mut self) {
-    match self.opcode & 0xf0ff {
-      0xe09e => self.op_skp_vx(),
-      0xe0a1 => self.op_sknp_vx(),
-      _ => self.op_unimplemented(),
-    }
-  }
-
-  fn ex_op_0xf000(&mut self) {
-    match self.opcode & 0xf0ff {
-      0xf007 => self.op_ld_vx_dt(),
-      0xf00a => self.op_ld_vx_k(),
-      0xf015 => self.op_ld_dt_vx(),
-      0xf018 => self.op_ld_st_vx(),
-      0xf01e => self.op_add_i_vx(),
-      0xf029 => self.op_ld_f_vx(),
-      0xf033 => self.op_ld_b_vx(),
-      0xf055 => self.op_ld_i_vx(),
-      0xf065 => self.op_ld_vx_i(),
-      _ => self.op_unimplemented(),
+    let components = (
+      ((self.opcode & 0xF000) >> 12) as u8,
+      ((self.opcode & 0x0F00) >> 8) as u8,
+      ((self.opcode & 0x00F0) >> 4) as u8,
+      (self.opcode & 0x000F) as u8
+    );
+    let nnn = (self.opcode & 0x0FFF) as usize;
+    let kk = (self.opcode & 0x00FF) as u8;
+    let x = components.1 as usize;
+    let y = components.2 as usize;
+    let n = components.3 as usize;
+    match components {
+      (0x0, 0x0, 0xE, 0x0) => self.op_cls(),
+      (0x0, 0x0, 0xE, 0xE) => self.op_ret(),
+      (0x1, _, _, _) => self.op_jp_addr(nnn),
+      (0x2, _, _, _) => self.op_call_addr(nnn),
+      (0x3, _, _, _) => self.op_se(x, kk),
+      (0x4, _, _, _) => self.op_sne(x, kk),
+      (0x5, _, _, 0x0) => self.op_se_xy(x, y),
+      (0x6, _, _, _) => self.op_ld_vx(x, kk),
+      (0x7, _, _, _) => self.op_add_vx(x, kk),
+      (0x8, _, _, 0x0) => self.op_ld_vx_vy(x, y),
+      (0x8, _, _, 0x1) => self.op_or_vx_vy(x, y),
+      (0x8, _, _, 0x2) => self.op_and_vx_vy(x, y),
+      (0x8, _, _, 0x3) => self.op_xor_vy_vy(x, y),
+      (0x8, _, _, 0x4) => self.op_add_vx_vy(x, y),
+      (0x8, _, _, 0x5) => self.op_sub_vx_vy(x, y),
+      (0x8, _, _, 0x6) => self.op_shr_vx_vy(x, y),
+      (0x8, _, _, 0x7) => self.op_subn_vx_vy(x, y),
+      (0x8, _, _, 0xE) => self.op_shl_vx_vy(x, y),
+      (0x9, _, _, 0x0) => self.op_sne_vx_vy(x, y),
+      (0xA, _, _, _) => self.op_ldi(nnn),
+      (0xB, _, _, _) => self.op_jp_addr_v0(nnn),
+      (0xC, _, _, _) => self.op_rnd_vx(x, kk),
+      (0xD, _, _, _) => self.op_drw_vx_vy_n(x, y, n),
+      (0xE, _, 0x9, 0xE) => self.op_skp_vx(x),
+      (0xE, _, 0xA, 0x1) => self.op_sknp_vx(x),
+      (0xF, _, 0x0, 0x7) => self.op_ld_vx_dt(x),
+      (0xF, _, 0x0, 0xA) => self.op_ld_vx_k(x),
+      (0xF, _, 0x1, 0x5) => self.op_ld_dt_vx(x),
+      (0xF, _, 0x1, 0x8) => self.op_ld_st_vx(x),
+      (0xF, _, 0x1, 0xE) => self.op_add_i_vx(x),
+      (0xF, _, 0x2, 0x9) => self.op_ld_f_vx(x),
+      (0xF, _, 0x3, 0x3) => self.op_ld_b_vx(x),
+      (0xF, _, 0x5, 0x5) => self.op_ld_i_vx(x),
+      (0xF, _, 0x6, 0x5) => self.op_ld_vx_i(x),
+      (_, _, _, _) => self.op_unimplemented(),
     }
   }
 
@@ -157,25 +140,25 @@ impl Cpu {
   }
 
   //1NNN	Jump to address NNN
-  fn op_jp_addr(&mut self) {
-    self.pc = (self.opcode & 0x0fff) as usize;
+  fn op_jp_addr(&mut self, nnn: usize) {
+    self.pc = nnn;
     //println!("pc: {:x?}", self.pc);
   }
 
   //2nnn - CALL addr
   //Call subroutine at nnn.
   //The interpreter increments the stack pointer, then puts the current PC on the top of the stack. The PC is then set to nnn.
-  fn op_call_addr(&mut self) {
+  fn op_call_addr(&mut self, nnn: usize) {
     self.stack[self.sp] = self.pc as u16;
     self.sp += 1;
-    self.pc = (self.opcode & 0x0fff) as usize;
+    self.pc = nnn;
   }
 
   //3xkk - SE Vx, byte
   //Skip next instruction if Vx = kk.
   //The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
-  fn op_se(&mut self) {
-    if self.v[((self.opcode & 0x0f00) >> 8) as usize] == (self.opcode & 0x00ff) as u8 {
+  fn op_se(&mut self, x: usize, kk: u8) {
+    if self.v[x] == kk {
       self.inc_pc();
     }
     self.inc_pc();
@@ -184,8 +167,8 @@ impl Cpu {
   //4xkk - SNE Vx, byte
   //Skip next instruction if Vx != kk.
   //The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
-  fn op_sne(&mut self) {
-    if self.v[((self.opcode & 0x0f00) >> 8) as usize] != (self.opcode & 0x00ff) as u8 {
+  fn op_sne(&mut self, x: usize, kk: u8) {
+    if self.v[x] != kk {
       self.inc_pc();
     }
     self.inc_pc();
@@ -194,10 +177,8 @@ impl Cpu {
   //5xy0 - SE Vx, Vy
   //Skip next instruction if Vx = Vy.
   //The interpreter compares register Vx to register Vy, and if they are equal, increments the program counter by 2.
-  fn op_se_xy(&mut self) {
-    if self.v[((self.opcode & 0x0f00) >> 8) as usize]
-      == self.v[((self.opcode & 0x00f0) >> 4) as usize]
-    {
+  fn op_se_xy(&mut self, x: usize, y: usize) {
+    if self.v[x] == self.v[y]{
       self.inc_pc();
     }
     self.inc_pc();
@@ -206,83 +187,73 @@ impl Cpu {
   //6xkk - LD Vx, byte
   //Set Vx = kk.
   //The interpreter puts the value kk into register Vx.
-  fn op_ld_vx(&mut self) {
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] = (self.opcode & 0x00ff) as u8;
+  fn op_ld_vx(&mut self, x: usize, kk: u8) {
+    self.v[x] = kk;
     self.inc_pc();
   }
 
   //7xkk - ADD Vx, byte
   //Set Vx = Vx + kk.
   //Adds the value kk to the value of register Vx, then stores the result in Vx.
-  fn op_add_vx(&mut self) {
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] += (self.opcode & 0x00ff) as u8;
+  fn op_add_vx(&mut self, x: usize, kk: u8) {
+    self.v[x] += kk;
     self.inc_pc();
   }
 
   //8xy0 - LD Vx, Vy
   //Set Vx = Vy.
   //Stores the value of register Vy in register Vx.
-  fn op_ld_vx_vy(&mut self) {
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] = self.v[((self.opcode & 0x00f0) >> 4) as usize];
+  fn op_ld_vx_vy(&mut self, x: usize, y: usize) {
+    self.v[x] = self.v[y];
     self.inc_pc();
   }
 
   //8xy1 - OR Vx, Vy
   //Set Vx = Vx OR Vy.
   //Performs a bitwise OR on the values of Vx and Vy, then stores the result in Vx.
-  fn op_or_vx_vy(&mut self) {
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] |=
-      self.v[((self.opcode & 0x00f0) >> 4) as usize];
+  fn op_or_vx_vy(&mut self, x: usize, y: usize) {
+    self.v[x] |= self.v[y];
     self.inc_pc();
   }
 
   //8xy2 - AND Vx, Vy
   //Set Vx = Vx AND Vy.
   //Performs a bitwise AND on the values of Vx and Vy, then stores the result in Vx.
-  fn op_and_vx_vy(&mut self) {
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] &=
-      self.v[((self.opcode & 0x00f0) >> 4) as usize];
+  fn op_and_vx_vy(&mut self, x: usize, y: usize) {
+    self.v[x] &= self.v[y];
     self.inc_pc();
   }
 
   //8xy3 - XOR Vx, Vy
   //Set Vx = Vx XOR Vy.
   //Performs a bitwise exclusive OR on the values of Vx and Vy,
-  fn op_xor_vy_vy(&mut self) {
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] ^=
-      self.v[((self.opcode & 0x00f0) >> 4) as usize];
+  fn op_xor_vy_vy(&mut self, x: usize, y: usize) {
+    self.v[x] ^= self.v[y];
     self.inc_pc();
   }
 
   //8xy4 - ADD Vx, Vy
   //Set Vx = Vx + Vy, set VF = carry.
   //The values of Vx and Vy are added together. If the result is greater than 8 bits (i.e., > 255,) VF is set to 1, otherwise 0. Only the lowest 8 bits of the result are kept, and stored in Vx.
-  fn op_add_vx_vy(&mut self) {
-    let sum = self.v[((self.opcode & 0x0f00) >> 8) as usize] as u16
-      + self.v[((self.opcode & 0x00f0) >> 4) as usize] as u16;
-    if sum > 0xff {
-      self.v[0xf] = 1;
-    } else {
-      self.v[0xf] = 0;
-    }
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] = (sum & 0x00ff) as u8;
+  fn op_add_vx_vy(&mut self, x: usize, y: usize) {
+    let sum = self.v[x] as u16 + self.v[y] as u16;
+    self.v[0xf] = if sum > 0xff {1} else {0};
+    self.v[x] = (sum & 0x00ff) as u8;
     self.inc_pc();
   }
 
-  //8xy5 - SUB Vx, Vy
+  //8xy5 - SUB Vx, Vy #ERROR???
   //Set Vx = Vx - Vy, set VF = NOT borrow.
-  //If Vx < Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
-  fn op_sub_vx_vy(&mut self) {
-    if self.v[((self.opcode & 0x0f00) >> 8) as usize]
-      < self.v[((self.opcode & 0x00f0) >> 4) as usize]
+  //If Vx > Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
+  fn op_sub_vx_vy(&mut self, x: usize, y: usize) {
+    if self.v[x] > self.v[y]
     {
       self.v[0xf] = 1;
     } else {
       self.v[0xf] = 0;
     }
     //wrapping prevents the execution to panic if the operation overflows
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] = self.v[((self.opcode & 0x0f00) >> 8) as usize]
-      .wrapping_sub(self.v[((self.opcode & 0x00f0) >> 4) as usize]);
+    self.v[x] = self.v[x].wrapping_sub(self.v[y]);
     self.inc_pc();
   }
 
@@ -290,20 +261,18 @@ impl Cpu {
   //Set Vx = Vy SHR 1.
   //LEGACY: If the least-significant bit of Vy is 1, then VF is set to 1, otherwise 0. Then Vy is divided by 2 and the results stored in Vx.
   //NEW: If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0. Then Vx is divided by 2.
-  fn op_shr_vx_vy(&mut self) {
+  fn op_shr_vx_vy(&mut self, x: usize, y: usize) {
     if LEGACY {
       //vf = vy &0x0001
-      self.v[0xf] = (self.v[((self.opcode & 0x00f0) >> 4) as usize] & 0x0001) as u8;
+      self.v[0xf] = (self.v[y] & 0x0001) as u8;
       //vx = vy / 2
-      self.v[((self.opcode & 0x0f00) >> 8) as usize] =
-        self.v[((self.opcode & 0x00f0) >> 4) as usize] >> 1;
+      self.v[x] = self.v[y] >> 1;
       self.inc_pc();
     } else {
       //vf = vx &0x0001
-      self.v[0xf] = (self.v[((self.opcode & 0x0f00) >> 8) as usize] & 0x0001) as u8;
+      self.v[0xf] = (self.v[x] & 0x0001) as u8;
       //vx = vx / 2
-      self.v[((self.opcode & 0x0f00) >> 8) as usize] =
-        self.v[((self.opcode & 0x0f00) >> 8) as usize] >> 1;
+      self.v[x] = self.v[x] >> 1;
       self.inc_pc();
     }
   }
@@ -311,16 +280,13 @@ impl Cpu {
   //8xy7 - SUBN Vx, Vy
   //Set Vx = Vy - Vx, set VF = NOT borrow.
   //If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
-  fn op_subn_vx_vy(&mut self) {
-    if self.v[((self.opcode & 0x0f00) >> 8) as usize]
-      < self.v[((self.opcode & 0x00f0) >> 4) as usize]
-    {
+  fn op_subn_vx_vy(&mut self, x: usize, y: usize) {
+    if self.v[x] < self.v[y]{
       self.v[0xf] = 0;
     } else {
       self.v[0xf] = 1;
     }
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] -=
-      self.v[((self.opcode & 0x00f0) >> 4) as usize];
+    self.v[x] -= self.v[y];
     self.inc_pc();
   }
 
@@ -328,20 +294,18 @@ impl Cpu {
   //Set Vx = Vx SHL 1.
   //LEGACY: If the most-significant bit of Vy is 1, then VF is set to 1, otherwise to 0. Then Vy is multiplied by 2 and stored in Vx.
   //New: If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0. Then Vx is multiplied by 2.
-  fn op_shl_vx_vy(&mut self) {
+  fn op_shl_vx_vy(&mut self, x: usize, y: usize) {
     if LEGACY {
       //vf = vy MSB
-      self.v[0xf] = (self.v[((self.opcode & 0x00f0) >> 4) as usize] >> 7) as u8;
+      self.v[0xf] = (self.v[y] >> 7) as u8;
       //vx = vy * 2
-      self.v[((self.opcode & 0x0f00) >> 8) as usize] =
-        self.v[((self.opcode & 0x00f0) >> 4) as usize] << 1;
+      self.v[x] = self.v[y] << 1;
       self.inc_pc();
     } else {
       //vf = vx MSB
-      self.v[0xf] = (self.v[((self.opcode & 0x0f00) >> 8) as usize] >> 7) as u8;
+      self.v[0xf] = (self.v[x] >> 7) as u8;
       //vx = vx * 2
-      self.v[((self.opcode & 0x0f00) >> 8) as usize] =
-        self.v[((self.opcode & 0x0f00) >> 8) as usize] << 1;
+      self.v[x] = self.v[x] << 1;
       self.inc_pc();
     }
   }
@@ -349,10 +313,8 @@ impl Cpu {
   //9xy0 - SNE Vx, Vy
   //Skip next instruction if Vx != Vy.
   //The values of Vx and Vy are compared, and if they are not equal, the program counter is increased by 2.
-  fn op_sne_vx_vy(&mut self) {
-    if self.v[((self.opcode & 0x0f00) >> 8) as usize]
-      != self.v[((self.opcode & 0x00f0) >> 4) as usize]
-    {
+  fn op_sne_vx_vy(&mut self, x: usize, y: usize) {
+    if self.v[x] != self.v[y]{
       self.inc_pc();
     }
     self.inc_pc();
@@ -361,24 +323,23 @@ impl Cpu {
   //Annn - LD I, addr
   //Set I = nnn.
   //The value of register I is set to nnn.
-  fn op_ldi(&mut self) {
-    self.i = self.opcode & 0x0fff;
+  fn op_ldi(&mut self, nnn: usize) {
+    self.i = nnn as u16;
     self.inc_pc();
   }
 
   //Bnnn - JP V0, addr
   //Jump to location nnn + V0.
   //The program counter is set to nnn plus the value of V0.
-  fn op_jp_addr_v0(&mut self) {
-    self.pc = (self.opcode & 0x0fff) as usize + self.v[0x0] as usize;
+  fn op_jp_addr_v0(&mut self, nnn: usize) {
+    self.pc = nnn as usize + self.v[0x0] as usize;
   }
 
   //Cxkk - RND Vx, byte
   //Set Vx = random byte AND kk.
   //The interpreter generates a random number from 0 to 255, which is then ANDed with the value kk. The results are stored in Vx.
-  fn op_rnd_vx(&mut self) {
-    self.v[((self.opcode & 0x0f00) >> 8) as usize] =
-      rand::random::<u8>() & (self.opcode & 0x00ff) as u8;
+  fn op_rnd_vx(&mut self, x: usize, kk: u8) {
+    self.v[x] = rand::random::<u8>() & kk;
     self.inc_pc();
   }
 
@@ -390,44 +351,57 @@ impl Cpu {
   //VF is set to 1, otherwise it is set to 0.
   //If the sprite is positioned so part of it is outside the coordinates of the display,
   //it wraps around to the opposite side of the screen.
-  fn op_drw_vx_vy_n(&mut self) {
-    let vx = self.v[((self.opcode & 0x0f00) >> 8) as usize] as usize;
-    let vy = self.v[((self.opcode & 0x00f0) >> 4) as usize] as usize;
-    let n = (self.opcode & 0x000f) as usize;
-    let mut collision = 0;
-    let i = self.i as usize;
-    if vx > 63 || vy > 31 {
-      return;
-    }
-    let sprite = &self.memory[i..i + n];
-    for y_offset in 0..n {
-      if vy + y_offset > 31 {
-        break;
-      }
-      let mut x_offset = vx + 8;
-      if x_offset > 63 {
-        x_offset = 63;
-      }
-      let screen_slice = &mut self.vram[vy + y_offset][vx..x_offset];
-      let sprite_slice = sprite[y_offset];
+  fn op_drw_vx_vy_n(&mut self, x: usize, y: usize, n: usize) {
+    self.v[0x0f] = 0;
+    for byte in 0..n {
+        let y = (self.v[y] as usize + byte) % 32;
+        for bit in 0..8 {
+            let x = (self.v[x] as usize + bit) % 64;
+            let color = ((self.memory[(self.i as usize) + byte] >> (7 - bit)) & 1) == 1;
+            self.v[0x0f] |= (color & self.vram[y][x]) as u8;
+            self.vram[y][x] ^= color;
 
-      for pixel in 0..screen_slice.len() {
-        let sprite_pixel = (sprite_slice & (0b1000_0000 >> pixel)) != 0; //casting to bool
-        if screen_slice[pixel] && sprite_pixel {
-          collision = 1
         }
-        screen_slice[pixel] ^= sprite_pixel;
-      }
     }
-    self.v[0xf] = collision;
+
+
+
+    // let vx = self.v[x] as usize;
+    // let vy = self.v[y] as usize;
+    // let mut collision = 0;
+    // let i = self.i as usize;
+    // if vx > 63 || vy > 31 {
+    //   return;
+    // }
+    // let sprite = &self.memory[i..i + n];
+    // for y_offset in 0..n {
+    //   if vy + y_offset > 31 {
+    //     break;
+    //   }
+    //   let mut x_offset = vx + 8;
+    //   if x_offset > 63 {
+    //     x_offset = 63;
+    //   }
+    //   let screen_slice = &mut self.vram[vy + y_offset][vx..x_offset];
+    //   let sprite_slice = sprite[y_offset];
+
+    //   for pixel in 0..screen_slice.len() {
+    //     let sprite_pixel = (sprite_slice & (0b1000_0000 >> pixel)) != 0; //casting to bool
+    //     if screen_slice[pixel] && sprite_pixel {
+    //       collision = 1
+    //     }
+    //     screen_slice[pixel] ^= sprite_pixel;
+    //   }
+    // }
+    // self.v[0xf] = collision;
     self.inc_pc();
   }
 
   //Ex9E - SKP Vx
   //Skip next instruction if key with the value of Vx is pressed.
   //Checks the keyboard, and if the key corresponding to the value of Vx is currently in the down position, PC is increased by 2.
-  fn op_skp_vx(&mut self) {
-    let key = self.v[((self.opcode & 0x0f00) as usize) >> 8] as usize;
+  fn op_skp_vx(&mut self, x: usize) {
+    let key = self.v[x] as usize;
     if self.key_buffer[key] {
       self.inc_pc();
     }
@@ -437,8 +411,8 @@ impl Cpu {
   //ExA1 - SKNP Vx
   //Skip next instruction if key with the value of Vx is not pressed.
   //Checks the keyboard, and if the key corresponding to the value of Vx is currently in the up position, PC is increased by 2.
-  fn op_sknp_vx(&mut self) {
-    let key = self.v[((self.opcode & 0x0f00) as usize) >> 8] as usize;
+  fn op_sknp_vx(&mut self, x: usize) {
+    let key = self.v[x] as usize;
     if !self.key_buffer[key] {
       self.inc_pc();
     }
@@ -448,19 +422,19 @@ impl Cpu {
   //Fx07 - LD Vx, DT
   //Set Vx = delay timer value.
   //The value of DT is placed into Vx.
-  fn op_ld_vx_dt(&mut self) {
-    self.v[((self.opcode & 0x0f00) as usize) >> 8] = self.delay_timer;
+  fn op_ld_vx_dt(&mut self, x: usize) {
+    self.v[x] = self.delay_timer;
     self.inc_pc();
   }
 
   //Fx0A - LD Vx, K
   //Wait for a key press, store the value of the key in Vx.
   //All execution stops until a key is pressed, then the value of that key is stored in Vx.
-  fn op_ld_vx_k(&mut self) {
+  fn op_ld_vx_k(&mut self, x: usize) {
     let exit = false;
     for (i, pressed) in self.key_buffer.iter().enumerate() {
       if *pressed {
-        self.v[((self.opcode & 0x0f00) as usize) >> 8] = i as u8;
+        self.v[x] = i as u8;
       }
     }
     if exit {
@@ -471,33 +445,33 @@ impl Cpu {
   //Fx15 - LD DT, Vx
   //Set delay timer = Vx.
   //DT is set equal to the value of Vx.
-  fn op_ld_dt_vx(&mut self) {
-    self.delay_timer = self.v[((self.opcode & 0x0f00) as usize) >> 8];
+  fn op_ld_dt_vx(&mut self, x: usize) {
+    self.delay_timer = self.v[x];
     self.inc_pc();
   }
 
   //Fx18 - LD ST, Vx
   //Set sound timer = Vx.
   //ST is set equal to the value of Vx.
-  fn op_ld_st_vx(&mut self) {
-    self.sound_timer = self.v[((self.opcode & 0x0f00) as usize) >> 8];
+  fn op_ld_st_vx(&mut self, x: usize) {
+    self.sound_timer = self.v[x];
     self.inc_pc();
   }
 
   //Fx1E - ADD I, Vx
   //Set I = I + Vx.
   //The values of I and Vx are added, and the results are stored in I.
-  fn op_add_i_vx(&mut self) {
-    self.i += self.v[((self.opcode & 0x0f00) as usize) >> 8] as u16;
+  fn op_add_i_vx(&mut self, x: usize) {
+    self.i += self.v[x] as u16;
     self.inc_pc();
   }
 
   //Fx29 - LD F, Vx
   //Set I = location of sprite for digit Vx.
   //The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx. See section 2.4, Display, for more information on the Chip-8 hexadecimal font.
-  fn op_ld_f_vx(&mut self) {
+  fn op_ld_f_vx(&mut self, x: usize) {
     //each sprite takes 5 bytes so 0x0000-> '0', 0x0005 -> '1', 0x000a -> '2' and so on.
-    self.i = self.v[((self.opcode & 0x0f00) as usize) >> 8] as u16 * 5;
+    self.i = self.v[x] as u16 * 5;
     self.inc_pc();
   }
 
@@ -506,8 +480,8 @@ impl Cpu {
   //The interpreter takes the decimal value of Vx,
   //and places the hundreds digit in memory at location in I,
   //the tens digit at location I+1, and the ones digit at location I+2.
-  fn op_ld_b_vx(&mut self) {
-    let vx = self.v[((self.opcode & 0x0f00) as usize) >> 8];
+  fn op_ld_b_vx(&mut self, x: usize) {
+    let vx = self.v[x];
     let i = self.i as usize;
     self.memory[i] = vx / 100;
     self.memory[i + 1] = (vx % 100) / 10;
@@ -518,8 +492,8 @@ impl Cpu {
   //Fx55 - LD [I], Vx
   //Store registers V0 through Vx in memory starting at location I.
   //The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I.
-  fn op_ld_i_vx(&mut self) {
-    let x = (((self.opcode & 0x0f00) as usize) >> 8) as u16;
+  fn op_ld_i_vx(&mut self, x: usize) {
+    let x = (x) as u16;
     for n in 0..x + 1 {
       self.memory[(self.i + n) as usize] = self.v[n as usize];
     }
@@ -529,8 +503,8 @@ impl Cpu {
   //Fx65 - LD Vx, [I]
   //Read registers V0 through Vx from memory starting at location I.
   //The interpreter reads values from memory starting at location I into registers V0 through Vx.
-  fn op_ld_vx_i(&mut self) {
-    let x = (((self.opcode & 0x0f00) as usize) >> 8) as u16;
+  fn op_ld_vx_i(&mut self, x: usize) {
+    let x = (x) as u16;
     for n in 0..x + 1 {
       self.v[n as usize] = self.memory[(self.i + n) as usize];
     }
