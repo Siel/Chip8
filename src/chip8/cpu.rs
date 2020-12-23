@@ -11,7 +11,7 @@ pub struct Cpu {
   sp: usize,
   memory: [u8; 4096],
   stack: [u16; 16],
-  screen_buffer: [[bool; 64]; 32],
+  v_ram: [[bool; 64]; 32],
   key_buffer: [bool; 16],
 }
 
@@ -27,7 +27,7 @@ impl Cpu {
       sp: 0,
       memory: [0; 4096],
       stack: [0; 16],
-      screen_buffer: [[false; 64]; 32],
+      v_ram: [[false; 64]; 32],
       key_buffer: [false; 16],
     }
   }
@@ -138,7 +138,7 @@ impl Cpu {
 
   // 00E0 - CLS -- Clear the display.
   fn op_cls(&mut self) {
-    self.screen_buffer = [[false; 64]; 32];
+    self.v_ram = [[false; 64]; 32];
     self.inc_pc();
   }
 
@@ -403,7 +403,7 @@ impl Cpu {
       if x_offset > 63 {
         x_offset = 63;
       }
-      let screen_slice = &mut self.screen_buffer[vy + y_offset][vx..x_offset];
+      let screen_slice = &mut self.v_ram[vy + y_offset][vx..x_offset];
       let sprite_slice = sprite[y_offset];
 
       for pixel in 0..screen_slice.len() {
