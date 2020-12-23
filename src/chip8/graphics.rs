@@ -74,6 +74,7 @@ impl event::EventHandler for GraphicsState {
             Ok(vram) => vram,
             Err(_) => self.vram
         };
+        
         Ok(())
     }
 
@@ -86,25 +87,14 @@ impl event::EventHandler for GraphicsState {
             w: 20.0,
             h: 20.0,
         }, graphics::WHITE)?;
-        let b_pixel = graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), Rect {
-            x: 0.0,
-            y: 0.0,
-            w: 20.0,
-            h: 20.0,
-        }, graphics::BLACK)?;
 
         for i in 0..31 {
             for j in 0..63{
                 if self.vram[i][j] {
                     graphics::draw(ctx, &w_pixel, (na::Point2::new((j as f32)*20.0 ,(i as f32)*20.0),))?;
-                } else {
-                    graphics::draw(ctx, &b_pixel, (na::Point2::new((j as f32)*20.0 ,(i as f32)*20.0),))?;
                 };
-            }
-            
+            }    
         }
-
-        
         graphics::present(ctx)?;
         Ok(())
     }
