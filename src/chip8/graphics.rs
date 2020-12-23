@@ -69,7 +69,11 @@ impl GraphicsState {
 
 impl event::EventHandler for GraphicsState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        self.vram = self.rx.recv().unwrap();
+        // self.vram = self.rx.recv().unwrap();
+        self.vram = match self.rx.try_recv(){
+            Ok(vram) => vram,
+            Err(_) => self.vram
+        };
         Ok(())
     }
 
