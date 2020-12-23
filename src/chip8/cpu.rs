@@ -1,5 +1,6 @@
 //use std::process;
 use std::sync::mpsc;
+use std::time::{Duration, Instant};
 const LEGACY: bool = false;
 
 pub struct Cpu {
@@ -15,7 +16,8 @@ pub struct Cpu {
   vram: [[bool; 64]; 32],
   key_buffer: [bool; 16],
   tx: mpsc::Sender<[[bool; 64]; 32]>,
-  update_vram: bool
+  update_vram: bool,
+  time_at_last_timer_count: Instant,
 }
 
 impl Cpu {
@@ -33,7 +35,8 @@ impl Cpu {
       vram: [[false; 64]; 32],
       key_buffer: [false; 16],
       tx: tx,
-      update_vram: false
+      update_vram: false,
+      time_at_last_timer_count: Instant::now()
     }
   }
 
@@ -58,8 +61,21 @@ impl Cpu {
     if(self.update_vram){
       self.tx.send(self.vram);
     }
+    self.count_timers();
     //self.inc_pc();
   }
+
+  fn count_timers(&mut self) {
+    if Instant::now() - self.time_at_last_timer_count >= Duration::from_millis(17) {
+        self.time_at_last_timer_count = Instant::now();
+        if self.sound_timer > 0 {
+            self.sound_timer = self.sound_timer - 1;
+        }
+        if self.delay_timer > 0 {
+            self.delay_timer = self.delay_timer - 1;
+        }
+    }
+}
 
   fn fetch_opcode(&mut self) {
     self.opcode = (self.memory[self.pc] as u16) << 8 | (self.memory[self.pc + 1] as u16);
