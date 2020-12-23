@@ -54,15 +54,13 @@ impl Graphics{
 
 
 struct GraphicsState {
-    pos_x: f32,
-    // cpu: Cpu
     vram: [[bool; 64]; 32],
     rx: mpsc::Receiver<[[bool; 64]; 32]>
 }
 
 impl GraphicsState {
     pub fn new(rx: mpsc::Receiver<[[bool; 64]; 32]>) -> GameResult<GraphicsState> {
-        let s = GraphicsState { pos_x: 0.0, vram: [[false; 64]; 32], rx: rx };// 
+        let s = GraphicsState {vram: [[false; 64]; 32], rx: rx };
         Ok(s)
     }
     
@@ -71,7 +69,6 @@ impl GraphicsState {
 
 impl event::EventHandler for GraphicsState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        //self.pos_x = self.pos_x % 800.0 + 1.0;
         self.vram = self.rx.recv().unwrap();
         Ok(())
     }
@@ -94,8 +91,11 @@ impl event::EventHandler for GraphicsState {
 
         for i in 0..31 {
             for j in 0..63{
-                let pixel = if self.vram[i][j] {w_pixel.clone()} else {b_pixel.clone()};
-                graphics::draw(ctx, &pixel, (na::Point2::new((j as f32)*20.0 ,(i as f32)*20.0),))?;
+                if self.vram[i][j] {
+                    graphics::draw(ctx, &w_pixel, (na::Point2::new((j as f32)*20.0 ,(i as f32)*20.0),))?;
+                } else {
+                    graphics::draw(ctx, &b_pixel, (na::Point2::new((j as f32)*20.0 ,(i as f32)*20.0),))?;
+                };
             }
             
         }
